@@ -27,7 +27,6 @@ const BUILTIN_SYSTEM_PROMPT = [
 
 chrome.runtime.onInstalled.addListener(async () => {
   await ensureContextMenu();
-  await injectIntoAllSupportedTabs();
 
   const current = await getConfig();
   const nextConfig = {};
@@ -45,19 +44,10 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 chrome.runtime.onStartup.addListener(() => {
   void ensureContextMenu();
-  void injectIntoAllSupportedTabs();
 });
 
 chrome.action.onClicked.addListener(() => {
   chrome.runtime.openOptionsPage();
-});
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== "complete" || isUnsupportedPageUrl(tab.url)) {
-    return;
-  }
-
-  void ensureContentAssets(tabId);
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -246,33 +236,12 @@ async function ensureContextMenu() {
   });
 }
 
-async function ensureContentAssets(tabId) {
-  try {
-    await chrome.scripting.insertCSS({
-      target: { tabId },
-      files: ["content.css"]
-    });
-  } catch (_error) {
-    // CSS may already exist or the current page may block injection.
-  }
-
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ["content.js"]
-    });
-  } catch (_error) {
-    // Script may already exist or the current page may block injection.
-  }
-}
-
 function isUnsupportedPageUrl(url = "") {
   return /^(chrome|edge|about|chrome-extension):/i.test(url);
 }
 
 async function deliverPanelMessage(tabId, payload) {
   try {
-    await ensureContentAssets(tabId);
     await chrome.tabs.sendMessage(tabId, {
       type: "OPEN_AI_PANEL",
       payload
@@ -310,16 +279,6 @@ async function showFallbackPanel(tabId, payload) {
     func: renderFallbackPanel,
     args: [payload]
   });
-}
-
-async function injectIntoAllSupportedTabs() {
-  const tabs = await chrome.tabs.query({});
-
-  await Promise.all(
-    tabs
-      .filter((tab) => tab.id && !isUnsupportedPageUrl(tab.url))
-      .map((tab) => ensureContentAssets(tab.id))
-  );
 }
 
 function postProcessAnswer(answer) {

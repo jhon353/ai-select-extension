@@ -2,21 +2,23 @@ const PANEL_ID = "ai-selection-assistant-panel";
 const SELECTION_HIGHLIGHT_CLASS = "ai-selection-assistant-highlight";
 const TRIGGER_ID = "ai-selection-assistant-trigger";
 const TRIGGER_SHOW_DELAY_MS = 300;
-
-if (window.__AI_SELECTION_ASSISTANT_INITIALIZED__) {
-  // Avoid binding duplicate listeners when the script is reinjected.
-} else {
-  window.__AI_SELECTION_ASSISTANT_INITIALIZED__ = true;
-  init();
-}
+const TRIGGER_AUTO_HIDE_MS = 3000;
+const ASSISTANT_OWNER_ATTR = "data-ai-selection-assistant-owner";
+const INSTANCE_ID = `ai-selection-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 let panelElements = null;
 let triggerElement = null;
 let latestSelectionText = "";
 let currentQueryText = "";
 let triggerTimerId = null;
+let triggerAutoHideTimerId = null;
 let suppressTrigger = false;
 let dismissedSelectionText = "";
+
+claimAssistantOwnership();
+cleanupDuplicateTriggers();
+cleanupDuplicatePanels();
+init();
 
 function init() {
   initSelectionTrigger();
@@ -53,12 +55,40 @@ function init() {
   });
 }
 
+function claimAssistantOwnership() {
+  document.documentElement.setAttribute(ASSISTANT_OWNER_ATTR, INSTANCE_ID);
+}
+
+function isActiveAssistantInstance() {
+  return document.documentElement.getAttribute(ASSISTANT_OWNER_ATTR) === INSTANCE_ID;
+}
+
+function cleanupDuplicateTriggers() {
+  document.querySelectorAll(`#${TRIGGER_ID}`).forEach((node) => {
+    node.remove();
+  });
+}
+
+function cleanupDuplicatePanels() {
+  document.querySelectorAll(`#${PANEL_ID}`).forEach((node) => {
+    node.remove();
+  });
+}
+
 function openPanel() {
+  if (!isActiveAssistantInstance()) {
+    return;
+  }
+
   ensurePanel();
   panelElements.root.classList.add("visible");
 }
 
 function closePanel() {
+  if (!isActiveAssistantInstance()) {
+    return;
+  }
+
   if (!panelElements) {
     return;
   }
@@ -75,6 +105,10 @@ function initSelectionTrigger() {
 }
 
 function handleSelectionFinished(event) {
+  if (!isActiveAssistantInstance()) {
+    return;
+  }
+
   const target = event.target;
   if (target instanceof Node && (panelElements?.root?.contains(target) || triggerElement?.contains(target))) {
     return;
@@ -96,6 +130,10 @@ function handleSelectionFinished(event) {
 }
 
 function handlePointerDown(event) {
+  if (!isActiveAssistantInstance()) {
+    return;
+  }
+
   const target = event.target;
   if (!(target instanceof Node)) {
     suppressTrigger = false;
@@ -116,6 +154,10 @@ function handlePointerDown(event) {
 }
 
 function handleViewportChange() {
+  if (!isActiveAssistantInstance()) {
+    return;
+  }
+
   if (!triggerElement?.classList.contains("visible")) {
     return;
   }
@@ -124,6 +166,10 @@ function handleViewportChange() {
 }
 
 function scheduleTriggerUpdate() {
+  if (!isActiveAssistantInstance()) {
+    return;
+  }
+
   clearScheduledTriggerUpdate();
 
   if (suppressTrigger || isPanelOpen()) {
@@ -153,10 +199,15 @@ function scheduleTriggerUpdate() {
 }
 
 function ensureTrigger() {
+  if (!isActiveAssistantInstance()) {
+    return null;
+  }
+
   if (triggerElement?.isConnected) {
     return triggerElement;
   }
 
+  cleanupDuplicateTriggers();
   const button = document.createElement("button");
   button.id = TRIGGER_ID;
   button.type = "button";
@@ -191,6 +242,10 @@ function ensureTrigger() {
 }
 
 function updateTriggerFromSelection() {
+  if (!isActiveAssistantInstance()) {
+    return;
+  }
+
   if (suppressTrigger || isPanelOpen()) {
     hideTrigger();
     return;
@@ -214,7 +269,7 @@ function updateTriggerFromSelection() {
   }
 
   const range = selection.getRangeAt(0);
-  const rect = range.getBoundingClientRect();
+  const rect = getSelectionBottomRightRect(range);
   if (!rect || (rect.width === 0 && rect.height === 0)) {
     hideTrigger();
     return;
@@ -222,19 +277,54 @@ function updateTriggerFromSelection() {
 
   latestSelectionText = selectedText;
   const trigger = ensureTrigger();
-  const top = Math.min(window.innerHeight - 48, Math.max(8, rect.bottom + 10));
-  const left = Math.min(window.innerWidth - 48, Math.max(8, rect.right - 18));
+  if (!trigger) {
+    return;
+  }
+  const triggerWidth = 28;
+  const triggerHeight = 22;
+  const gap = 6;
+  const top = Math.min(window.innerHeight - triggerHeight - 8, Math.max(8, rect.bottom + gap));
+  const left = Math.min(
+    window.innerWidth - triggerWidth - 8,
+    Math.max(8, rect.right - triggerWidth)
+  );
 
   trigger.style.top = `${top}px`;
   trigger.style.left = `${left}px`;
   trigger.classList.add("visible");
+  scheduleTriggerAutoHide(selectedText);
+}
+
+function getSelectionBottomRightRect(range) {
+  const rects = Array.from(range.getClientRects()).filter((item) => item.width > 0 || item.height > 0);
+  if (rects.length === 0) {
+    return range.getBoundingClientRect();
+  }
+
+  const maxBottom = Math.max(...rects.map((item) => item.bottom));
+  const bottomRects = rects.filter((item) => Math.abs(item.bottom - maxBottom) < 1);
+
+  return bottomRects.reduce((best, current) => {
+    if (!best) {
+      return current;
+    }
+
+    return current.right > best.right ? current : best;
+  }, null);
 }
 
 function hideTrigger() {
-  if (!triggerElement) {
+  if (!isActiveAssistantInstance()) {
+    clearTriggerAutoHide();
     return;
   }
 
+  if (!triggerElement) {
+    clearTriggerAutoHide();
+    return;
+  }
+
+  clearTriggerAutoHide();
   triggerElement.classList.remove("visible");
 }
 
@@ -245,6 +335,26 @@ function clearScheduledTriggerUpdate() {
 
   window.clearTimeout(triggerTimerId);
   triggerTimerId = null;
+}
+
+function scheduleTriggerAutoHide(selectionText) {
+  clearTriggerAutoHide();
+  triggerAutoHideTimerId = window.setTimeout(() => {
+    const currentSelectionText = getCurrentSelectionText();
+    if (currentSelectionText && currentSelectionText === selectionText) {
+      dismissedSelectionText = currentSelectionText;
+    }
+    hideTrigger();
+  }, TRIGGER_AUTO_HIDE_MS);
+}
+
+function clearTriggerAutoHide() {
+  if (triggerAutoHideTimerId === null) {
+    return;
+  }
+
+  window.clearTimeout(triggerAutoHideTimerId);
+  triggerAutoHideTimerId = null;
 }
 
 function getCurrentSelectionText() {
@@ -336,10 +446,15 @@ function hideSuggestions() {
 }
 
 function ensurePanel() {
+  if (!isActiveAssistantInstance()) {
+    return null;
+  }
+
   if (panelElements?.root?.isConnected) {
     return panelElements;
   }
 
+  cleanupDuplicatePanels();
   const root = document.createElement("div");
   root.id = PANEL_ID;
   root.innerHTML = `
