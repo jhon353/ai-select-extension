@@ -18,10 +18,10 @@ const BUILTIN_SYSTEM_PROMPT = [
   "回答目标是：帮助用户快速理解，不是展示你的思考。",
   "不要输出思考过程、推理过程、内部分析、回答策略、任务复述，也不要说“我理解您希望我…”这类元话术。",
   "不要输出 <think> 标签或类似内容。",
-  "默认使用简洁中文，少说空话，不要过度展开。",
+  "默认使用简洁中文，少说空话，稍微详细点。",
   "上下文只用于帮助你判断词义和作者意图，不要单独输出“在当前上下文中的意思”这一类标题。",
-  "术语解释时，优先使用这个结构：### 术语解释、### 补充。",
-  "内容解释时，优先使用这个结构：### 这段在说什么、### 关键点。",
+  // "术语解释时，优先使用这个结构：### 术语解释、### 补充。",
+  // "内容解释时，优先使用这个结构：### 这段在说什么、### 关键点。",
   "如果没有必要，某些小节可以省略，但不要为了凑结构写废话。"
 ].join(" ");
 
@@ -194,8 +194,9 @@ function buildUserPrompt(payload) {
   const pageTitle = payload?.pageTitle || "未知页面";
   const pageUrl = payload?.pageUrl || "未知链接";
   const selectedText = payload?.selectedText || "";
+  const queryText = (payload?.queryText || selectedText || "").trim();
   const pageContext = payload?.pageContext || "";
-  const selectionMode = inferSelectionMode(selectedText);
+  const selectionMode = inferSelectionMode(queryText || selectedText);
 
   return [
     `页面标题：${pageTitle}`,
@@ -204,6 +205,9 @@ function buildUserPrompt(payload) {
     "",
     "用户选中的内容如下：",
     selectedText,
+    "",
+    "用户当前想问的是：",
+    queryText || selectedText,
     "",
     "选中内容附近的上下文如下：",
     pageContext || "无",

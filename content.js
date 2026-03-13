@@ -13,8 +13,10 @@ if (window.__AI_SELECTION_ASSISTANT_INITIALIZED__) {
 let panelElements = null;
 let triggerElement = null;
 let latestSelectionText = "";
+let currentQueryText = "";
 let triggerTimerId = null;
 let suppressTrigger = false;
+let dismissedSelectionText = "";
 
 function init() {
   initSelectionTrigger();
@@ -32,10 +34,13 @@ function init() {
     }
 
     latestSelectionText = selectedText;
+    currentQueryText = selectedText;
     suppressTrigger = true;
     clearScheduledTriggerUpdate();
     hideTrigger();
     openPanel();
+    setQueryText(selectedText);
+    updateSuggestionList(selectedText);
     if (errorMessage) {
       renderConfigRequired(selectedText, errorMessage);
       return;
@@ -44,7 +49,7 @@ function init() {
     renderLoading(selectedText);
     highlightCurrentSelection();
 
-    void requestAiAnswer(selectedText);
+    void requestAiAnswer(selectedText, selectedText);
   });
 }
 
@@ -95,6 +100,7 @@ function handlePointerDown(event) {
   if (!(target instanceof Node)) {
     suppressTrigger = false;
     clearScheduledTriggerUpdate();
+    dismissedSelectionText = getCurrentSelectionText();
     hideTrigger();
     return;
   }
@@ -105,6 +111,7 @@ function handlePointerDown(event) {
 
   suppressTrigger = false;
   clearScheduledTriggerUpdate();
+  dismissedSelectionText = getCurrentSelectionText();
   hideTrigger();
 }
 
@@ -132,6 +139,11 @@ function scheduleTriggerUpdate() {
 
     const latestText = window.getSelection()?.toString().trim() || "";
     if (!latestText || latestText !== selectionText) {
+      hideTrigger();
+      return;
+    }
+
+    if (dismissedSelectionText && latestText === dismissedSelectionText) {
       hideTrigger();
       return;
     }
@@ -166,9 +178,11 @@ function ensureTrigger() {
     clearScheduledTriggerUpdate();
     hideTrigger();
     openPanel();
+    setQueryText(latestSelectionText);
+    updateSuggestionList(latestSelectionText);
     renderLoading(latestSelectionText);
     highlightCurrentSelection();
-    void requestAiAnswer(latestSelectionText);
+    void requestAiAnswer(latestSelectionText, latestSelectionText);
   });
 
   document.documentElement.appendChild(button);
@@ -190,8 +204,13 @@ function updateTriggerFromSelection() {
 
   const selectedText = selection.toString().trim();
   if (!selectedText) {
+    dismissedSelectionText = "";
     hideTrigger();
     return;
+  }
+
+  if (dismissedSelectionText && selectedText !== dismissedSelectionText) {
+    dismissedSelectionText = "";
   }
 
   const range = selection.getRangeAt(0);
@@ -228,8 +247,92 @@ function clearScheduledTriggerUpdate() {
   triggerTimerId = null;
 }
 
+function getCurrentSelectionText() {
+  return window.getSelection()?.toString().trim() || "";
+}
+
 function isPanelOpen() {
   return Boolean(panelElements?.root?.classList.contains("visible"));
+}
+
+function setQueryText(value) {
+  ensurePanel();
+  currentQueryText = (value || "").trim();
+  panelElements.queryInput.value = value || "";
+  autoResizeQueryInput();
+}
+
+function getQueryText() {
+  ensurePanel();
+  return panelElements.queryInput.value.trim();
+}
+
+function autoResizeQueryInput() {
+  if (!panelElements?.queryInput) {
+    return;
+  }
+
+  panelElements.queryInput.style.height = "auto";
+  panelElements.queryInput.style.height = `${panelElements.queryInput.scrollHeight}px`;
+}
+
+function updateSuggestionList(baseText) {
+  ensurePanel();
+  const suggestions = buildSuggestions(baseText, getQueryText());
+  panelElements.suggestions.innerHTML = suggestions
+    .map(
+      (item) => `
+        <button
+          type="button"
+          class="ai-selection-assistant__suggestion-btn"
+          data-action="suggestion"
+          data-value="${escapeHtml(item)}"
+        >${escapeHtml(item)}</button>
+      `
+    )
+    .join("");
+
+  if (suggestions.length === 0) {
+    hideSuggestions();
+    return;
+  }
+
+  if (document.activeElement === panelElements.queryInput) {
+    showSuggestions();
+  }
+}
+
+function buildSuggestions(baseText, queryText) {
+  const seed = (queryText || baseText || "").trim();
+  if (!seed) {
+    return [];
+  }
+
+  const normalizedSeed = seed.replace(/[？?。！!；;，,]+$/g, "").trim();
+  const rawSuggestions = [
+    `${normalizedSeed} 是什么`,
+    `${normalizedSeed} 如何使用`,
+    `${normalizedSeed} 有什么作用`,
+    `${normalizedSeed} 和当前内容有什么关系`
+  ];
+
+  return [...new Set(rawSuggestions.filter((item) => item.length <= 40))];
+}
+
+function showSuggestions() {
+  if (!panelElements?.suggestions || !panelElements.suggestions.innerHTML.trim()) {
+    return;
+  }
+
+  panelElements.root.classList.add("show-suggestions");
+}
+
+function hideSuggestions() {
+  if (!panelElements?.root) {
+    return;
+  }
+
+  panelElements.root.classList.remove("show-suggestions");
 }
 
 function ensurePanel() {
@@ -250,8 +353,15 @@ function ensurePanel() {
         </div>
       </div>
       <div class="ai-selection-assistant__section">
-        <div class="ai-selection-assistant__label">选中文本</div>
-        <div class="ai-selection-assistant__selected-text"></div>
+        <div class="ai-selection-assistant__label">查询内容</div>
+        <div class="ai-selection-assistant__query-wrap">
+          <textarea
+            class="ai-selection-assistant__query-input"
+            rows="1"
+            placeholder="输入问题"
+          ></textarea>
+          <div class="ai-selection-assistant__suggestions"></div>
+        </div>
       </div>
       <div class="ai-selection-assistant__section">
         <div class="ai-selection-assistant__label">AI 回答</div>
@@ -266,7 +376,8 @@ function ensurePanel() {
   document.documentElement.appendChild(root);
 
   const answer = root.querySelector(".ai-selection-assistant__answer");
-  const selectedText = root.querySelector(".ai-selection-assistant__selected-text");
+  const queryInput = root.querySelector(".ai-selection-assistant__query-input");
+  const suggestions = root.querySelector(".ai-selection-assistant__suggestions");
 
   root.addEventListener("click", (event) => {
     const target = event.target;
@@ -281,23 +392,58 @@ function ensurePanel() {
     }
 
     if (action === "retry" && latestSelectionText) {
-      renderLoading(latestSelectionText);
-      void requestAiAnswer(latestSelectionText);
+      submitCurrentQuery();
+      return;
     }
+
+    if (action === "suggestion" && target.dataset.value) {
+      setQueryText(target.dataset.value);
+      hideSuggestions();
+      submitCurrentQuery();
+    }
+  });
+
+  queryInput.addEventListener("focus", () => {
+    updateSuggestionList(latestSelectionText);
+    showSuggestions();
+  });
+
+  queryInput.addEventListener("input", () => {
+    currentQueryText = queryInput.value.trim();
+    autoResizeQueryInput();
+    updateSuggestionList(latestSelectionText);
+  });
+
+  queryInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      submitCurrentQuery();
+    }
+
+    if (event.key === "Escape") {
+      hideSuggestions();
+    }
+  });
+
+  queryInput.addEventListener("blur", () => {
+    window.setTimeout(() => {
+      hideSuggestions();
+    }, 120);
   });
 
   panelElements = {
     root,
     answer,
-    selectedText
+    queryInput,
+    suggestions
   };
 
   return panelElements;
 }
 
-function renderLoading(selectedText) {
+function renderLoading(queryText) {
   ensurePanel();
-  panelElements.selectedText.textContent = selectedText;
+  setQueryText(queryText);
   panelElements.answer.innerHTML = `
     <div class="ai-selection-assistant__loading">
       <span class="ai-selection-assistant__spinner"></span>
@@ -315,7 +461,7 @@ function renderError(message) {
 
 function renderConfigRequired(selectedText, message) {
   ensurePanel();
-  panelElements.selectedText.textContent = selectedText;
+  setQueryText(selectedText);
   panelElements.answer.innerHTML = `
     <div class="ai-selection-assistant__error">${escapeHtml(message)}</div>
   `;
@@ -326,7 +472,7 @@ function renderAnswer(answer) {
   panelElements.answer.innerHTML = formatAnswer(answer);
 }
 
-async function requestAiAnswer(selectedText) {
+async function requestAiAnswer(selectedText, queryText = selectedText) {
   const pageContext = getSelectionContext();
 
   try {
@@ -334,6 +480,7 @@ async function requestAiAnswer(selectedText) {
       type: "ASK_AI",
       payload: {
         selectedText,
+        queryText,
         pageTitle: document.title,
         pageUrl: location.href,
         pageContext
@@ -349,6 +496,14 @@ async function requestAiAnswer(selectedText) {
   } catch (error) {
     renderError(error.message || "请求失败，请检查扩展配置。");
   }
+}
+
+function submitCurrentQuery() {
+  const queryText = getQueryText() || latestSelectionText;
+  currentQueryText = queryText;
+  renderLoading(queryText);
+  hideSuggestions();
+  void requestAiAnswer(latestSelectionText, queryText);
 }
 
 function getSelectionContext() {
