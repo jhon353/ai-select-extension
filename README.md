@@ -1,4 +1,4 @@
-# AI Selection Assistant
+# AI 划词解答
 
 一个基于 `Chrome Extension Manifest V3` 的浏览器扩展：
 
@@ -34,9 +34,9 @@
 
 ## 效果图
 
-![AI Selection Assistant 选中文本按钮效果图](./images/selection-demo.png)
+![AI 划词解答 选中文本按钮效果图](./images/selection-demo.png)
 
-![AI Selection Assistant 解答浮层效果图](./images/selection-panel-demo.png)
+![AI 划词解答 解答浮层效果图](./images/selection-panel-demo.png)
 
 ## 接口要求
 

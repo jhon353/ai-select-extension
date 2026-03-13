@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "AI Selection Assistant",
+  "name": "AI 划词解答",
   "version": "1.0.0",
-  "description": "选中文本后通过右键菜单调用 AI，并在页面内显示解答浮层。",
+  "description": "选中文字后快速获取 AI 解释、总结与答案，支持自定义接口地址、模型和 API Key。",
   "permissions": [
     "contextMenus",
     "storage",
@@ -17,7 +17,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "AI Selection Assistant"
+    "default_title": "AI 划词解答"
   },
   "content_scripts": [
     {
