@@ -161,7 +161,7 @@ function ensureTrigger() {
   button.id = TRIGGER_ID;
   button.type = "button";
   button.setAttribute("aria-label", "打开 AI 解答");
-  button.innerHTML = `<span>AI</span>`;
+  button.textContent = "AI";
 
   button.addEventListener("mousedown", (event) => {
     // Prevent the current selection from being cleared before click.
