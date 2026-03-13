@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Selection Assistant 配置</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+
+      .container {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+        padding: 24px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+
+      .desc {
+        margin: 0 0 24px;
+        color: #475569;
+        line-height: 1.7;
+      }
+
+      .field {
+        margin-bottom: 18px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 12px 14px;
+        font-size: 14px;
+        background: #fff;
+      }
+
+      textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      button {
+        border: none;
+        border-radius: 999px;
+        padding: 12px 18px;
+        background: #4f46e5;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      #status {
+        color: #047857;
+        font-size: 14px;
+      }
+
+      .hint {
+        margin-top: 18px;
+        font-size: 13px;
+        line-height: 1.7;
+        color: #64748b;
+      }
+
+      @media (max-width: 640px) {
+        .row {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>AI 解答扩展配置</h1>
+        <p class="desc">
+          填写兼容 OpenAI Chat Completions 的接口配置。保存后，在网页中选中文字，右键点击
+          “AI 解答选中文本” 即可弹出浮层。
+        </p>
+
+        <div class="field">
+          <label for="apiBaseUrl">API Base URL</label>
+          <input id="apiBaseUrl" placeholder="例如：https://api.openai.com/v1" />
+        </div>
+
+        <div class="field">
+          <label for="apiPath">API Path</label>
+          <input id="apiPath" placeholder="例如：/chat/completions" />
+        </div>
+
+        <div class="field">
+          <label for="apiKey">API Key</label>
+          <input id="apiKey" type="password" placeholder="请输入你的 API Key" />
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="model">模型名称</label>
+            <input id="model" placeholder="例如：gpt-4o-mini" />
+          </div>
+          <div class="field">
+            <label for="maxTokens">最大输出 Tokens</label>
+            <input id="maxTokens" type="number" min="1" step="1" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="temperature">Temperature</label>
+          <input id="temperature" type="number" min="0" max="2" step="0.1" />
+        </div>
+
+        <div class="field">
+          <label for="systemPrompt">系统提示词</label>
+          <textarea id="systemPrompt"></textarea>
+        </div>
+
+        <div class="actions">
+          <button id="saveBtn">保存配置</button>
+          <span id="status"></span>
+        </div>
+
+        <div class="hint">
+          支持 OpenAI、兼容 OpenAI 协议的中转服务或本地模型网关。若你的接口不是
+          `/chat/completions`，可直接调整 `API Path`。
+        </div>
+      </div>
+    </div>
+
+    <script src="options.js"></script>
+  </body>
+</html>
