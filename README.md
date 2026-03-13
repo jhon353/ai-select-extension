@@ -32,6 +32,12 @@
 5. 右键点击 `AI 解答选中文本`。
 6. 等待页面右上角浮层返回回答。
 
+## 效果图
+
+![AI Selection Assistant 选中文本按钮效果图](./images/selection-demo.png)
+
+![AI Selection Assistant 解答浮层效果图](./images/selection-panel-demo.png)
+
 ## 接口要求
 
 默认按 OpenAI Chat Completions 协议发起请求，示例请求体如下：
